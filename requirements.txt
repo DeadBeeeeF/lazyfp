@@ -1,0 +1,8 @@
+pdfplumber
+pandas
+openpyxl
+reportlab
+fastapi
+uvicorn
+python-multipart
+aiofiles

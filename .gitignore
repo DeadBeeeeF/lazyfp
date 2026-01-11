@@ -1,0 +1,13 @@
+__pycache__/
+venv/
+*.log
+*.pyc
+.DS_Store
+.env
+
+# Data and Outputs
+fp/
+zip/
+invoice_cache.json
+invoice_summary.xlsx
+debug_output.txt

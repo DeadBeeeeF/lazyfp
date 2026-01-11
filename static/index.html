@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LazyFP Invoice Manager</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://unpkg.com/alpinejs@3.13.3/dist/cdn.min.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3b82f6',
+                        darkbg: '#0f172a',
+                        darkcard: '#1e293b'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        [x-cloak] {
+            display: none !important;
+        }
+    </style>
+</head>
+
+<body class="h-full bg-gray-50 dark:bg-darkbg text-gray-900 dark:text-gray-100 transition-colors duration-200"
+    x-data="app()" x-init="initApp()">
+
+    <!-- Top Navigation -->
+    <nav class="bg-white dark:bg-darkcard border-b border-gray-200 dark:border-gray-700 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <span class="text-xl font-bold text-primary">LazyFP</span>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <!-- Language Toggle -->
+                    <button @click="toggleLang()"
+                        class="p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition">
+                        <span x-text="lang === 'en' ? '中文' : 'English'" class="text-sm font-medium"></span>
+                    </button>
+                    <!-- Theme Toggle -->
+                    <button @click="toggleTheme()"
+                        class="p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition">
+                        <!-- Sun Icon -->
+                        <svg x-show="isDark" class="w-5 h-5 text-yellow-400" fill="none" stroke="currentColor"
+                            viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z">
+                            </path>
+                        </svg>
+                        <!-- Moon Icon -->
+                        <svg x-show="!isDark" class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor"
+                            viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M20.354 24.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z">
+                            </path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+
+        <!-- Controls -->
+        <div class="mb-6 flex flex-col md:flex-row gap-4 items-center justify-between">
+            <div class="flex gap-2 w-full md:w-auto">
+                <input type="file" multiple @change="handleUpload" x-ref="fileInput" class="hidden">
+                <button @click="$refs.fileInput.click()"
+                    class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded shadow transition flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
+                    </svg>
+                    <span x-text="t('upload')"></span>
+                </button>
+                <button @click="fetchData()"
+                    class="bg-primary hover:bg-blue-700 text-white px-4 py-2 rounded shadow transition flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15">
+                        </path>
+                    </svg>
+                    <span x-text="t('refresh')"></span>
+                </button>
+                <button @click="handleDeduplicate()" :disabled="dedupLoading"
+                    class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded shadow transition flex items-center gap-2 disabled:opacity-50">
+                    <svg x-show="!dedupLoading" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10">
+                        </path>
+                    </svg>
+                    <svg x-show="dedupLoading" class="animate-spin -ml-1 mr-3 h-4 w-4 text-white"
+                        xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4">
+                        </circle>
+                        <path class="opacity-75" fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+                        </path>
+                    </svg>
+                    <span x-text="t('deduplicate')"></span>
+                </button>
+                <button @click="handleOrganize()" :disabled="orgLoading"
+                    class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded shadow transition flex items-center gap-2 disabled:opacity-50">
+                    <svg x-show="!orgLoading" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10">
+                        </path>
+                    </svg>
+                    <svg x-show="orgLoading" class="animate-spin -ml-1 mr-3 h-4 w-4 text-white"
+                        xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4">
+                        </circle>
+                        <path class="opacity-75" fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+                        </path>
+                    </svg>
+                    <span x-text="t('organize')"></span>
+                </button>
+            </div>
+
+            <div class="flex gap-4 w-full md:w-auto items-center">
+                <!-- Group Toggle -->
+                <div class="flex items-center">
+                    <button @click="isGrouped = !isGrouped"
+                        :class="isGrouped ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300'"
+                        class="px-4 py-2 rounded shadow transition flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M4 6h16M4 10h16M4 14h16M4 18h16"></path>
+                        </svg>
+                        <span x-text="t('toggleGroup')"></span>
+                    </button>
+                </div>
+
+                <div class="w-full md:w-64">
+                    <input x-model="search" type="text" :placeholder="t('searchPlaceholder')"
+                        class="w-full px-4 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-darkcard focus:outline-none focus:ring-2 focus:ring-primary">
+                </div>
+            </div>
+        </div>
+
+        <!-- Dashboard Cards -->
+        <div x-show="!isGrouped" class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+            <div class="bg-white dark:bg-darkcard rounded-lg shadow p-6">
+                <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400" x-text="t('totalInvoices')"></h3>
+                <p class="mt-2 text-3xl font-semibold" x-text="filteredData.length"></p>
+            </div>
+            <div class="bg-white dark:bg-darkcard rounded-lg shadow p-6">
+                <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400" x-text="t('totalAmount')"></h3>
+                <p class="mt-2 text-3xl font-semibold" x-text="'¥' + totalAmount.toFixed(2)"></p>
+            </div>
+            <div class="bg-white dark:bg-darkcard rounded-lg shadow p-6">
+                <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400" x-text="t('uniqueSellers')"></h3>
+                <p class="mt-2 text-3xl font-semibold" x-text="uniqueSellers"></p>
+            </div>
+        </div>
+
+        <!-- Table View -->
+        <div x-show="!isGrouped" class="bg-white dark:bg-darkcard shadow rounded-lg overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                    <thead class="bg-gray-50 dark:bg-gray-800">
+                        <tr>
+                            <th @click="sortBy('date')"
+                                class="cursor-pointer hover:text-primary px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                <span x-text="t('date')"></span> <span x-show="sortCol === 'date'"
+                                    x-text="sortAsc ? '↑' : '↓'"></span>
+                            </th>
+                            <th @click="sortBy('invoice_no')"
+                                class="cursor-pointer hover:text-primary px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                <span x-text="t('invoiceNo')"></span> <span x-show="sortCol === 'invoice_no'"
+                                    x-text="sortAsc ? '↑' : '↓'"></span>
+                            </th>
+                            <th @click="sortBy('purchaser')"
+                                class="cursor-pointer hover:text-primary px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                <span x-text="t('purchaser')"></span> <span x-show="sortCol === 'purchaser'"
+                                    x-text="sortAsc ? '↑' : '↓'"></span>
+                            </th>
+                            <th @click="sortBy('seller')"
+                                class="cursor-pointer hover:text-primary px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                <span x-text="t('seller')"></span> <span x-show="sortCol === 'seller'"
+                                    x-text="sortAsc ? '↑' : '↓'"></span>
+                            </th>
+                            <th @click="sortBy('total_amount')"
+                                class="cursor-pointer hover:text-primary px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                <span x-text="t('amount')"></span> <span x-show="sortCol === 'total_amount'"
+                                    x-text="sortAsc ? '↑' : '↓'"></span>
+                            </th>
+                            <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider"
+                                x-text="t('actions')"></th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white dark:bg-darkcard divide-y divide-gray-200 dark:divide-gray-700">
+                        <template x-for="(item, index) in filteredData" :key="item.invoice_no || index">
+                            <!-- Alpine v3 supports multiple roots in loop -->
+                            <!-- Combine tr and detail row in a template tag if possible, but separate trs work with x-for -->
+                            <template x-if="true">
+                    <tbody class="border-b border-gray-200 dark:border-gray-700">
+                        <tr @click="toggleExpand(item.invoice_no || item.filename)"
+                            class="hover:bg-gray-50 dark:hover:bg-gray-800 transition cursor-pointer">
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                                <div class="flex items-center gap-2">
+                                    <svg class="w-4 h-4 transition-transform duration-200"
+                                        :class="isExpanded(item.invoice_no || item.filename) ? 'transform rotate-90' : ''"
+                                        fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M9 5l7 7-7 7"></path>
+                                    </svg>
+                                    <span x-text="item.date"></span>
+                                </div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white"
+                                x-text="item.invoice_no"></td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 truncate max-w-xs"
+                                :title="item.purchaser" x-text="item.purchaser"></td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 truncate max-w-xs"
+                                :title="item.seller" x-text="item.seller"></td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900 dark:text-green-400"
+                                x-text="'¥' + (item.total_amount || 0).toFixed(2)"></td>
+                            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium" @click.stop>
+                                <button @click="deleteItem(item)"
+                                    class="text-red-600 hover:text-red-900 dark:hover:text-red-400 ml-2">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16">
+                                        </path>
+                                    </svg>
+                                </button>
+                            </td>
+                        </tr>
+                        <!-- Detail Row -->
+                        <tr x-show="isExpanded(item.invoice_no || item.filename)" x-transition
+                            class="bg-gray-50 dark:bg-gray-900">
+                            <td colspan="6" class="px-6 py-4 text-sm text-gray-600 dark:text-gray-300">
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <span class="font-semibold block mb-1" x-text="t('quarter') + ':'"></span>
+                                        <span x-text="item.quarter"></span>
+                                    </div>
+                                    <div>
+                                        <span class="font-semibold block mb-1">Filenames:</span>
+                                        <ul class="list-disc list-inside space-y-1">
+                                            <template x-for="fname in item.filename.split(', ')" :key="fname">
+                                                <li x-text="fname" class="truncate"></li>
+                                            </template>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                    </template>
+                    </template>
+                    <tr x-show="filteredData.length === 0">
+                        <td colspan="6" class="px-6 py-12 text-center text-gray-500 dark:text-gray-400"
+                            x-text="t('noData')"></td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Grouped View -->
+        <div x-show="isGrouped" class="space-y-6">
+            <template x-for="purchaserGroup in groupedData" :key="purchaserGroup.name">
+                <div class="space-y-4">
+                    <!-- Purchaser Header -->
+                    <div class="flex items-center gap-3 pb-2 border-b-2 border-primary">
+                        <h2 class="text-xl font-bold text-gray-800 dark:text-gray-100" x-text="purchaserGroup.name">
+                        </h2>
+                        <span
+                            class="px-2 py-0.5 rounded text-sm bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+                            x-text="'¥' + purchaserGroup.total.toFixed(2)"></span>
+                    </div>
+
+                    <template x-for="quarter in purchaserGroup.quarters" :key="quarter.name">
+                        <div
+                            class="bg-white dark:bg-darkcard shadow rounded-lg overflow-hidden ml-4 border-l-4 border-gray-300 dark:border-gray-600">
+                            <div
+                                class="px-6 py-4 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-lg font-bold text-gray-900 dark:text-white"
+                                        x-text="quarter.name"></span>
+                                    <span
+                                        class="px-2 py-0.5 rounded text-xs bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-200"
+                                        x-text="t('quarter')"></span>
+                                </div>
+                                <div class="flex items-center gap-4">
+                                    <button @click="exportZip(purchaserGroup.name, quarter.name)"
+                                        class="text-sm bg-green-100 hover:bg-green-200 text-green-800 px-3 py-1 rounded transition flex items-center gap-1">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4">
+                                            </path>
+                                        </svg>
+                                        <span x-text="t('exportZip')"></span>
+                                    </button>
+                                    <div class="text-lg font-bold text-green-600 dark:text-green-400"
+                                        x-text="'¥' + quarter.total.toFixed(2)"></div>
+                                </div>
+                            </div>
+
+                            <div class="p-4 space-y-4">
+                                <template x-for="seller in quarter.sellers" :key="seller.name">
+                                    <div class="border border-gray-200 dark:border-gray-700 rounded-md">
+                                        <div class="px-4 py-2 bg-white dark:bg-gray-900 flex justify-between items-center cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800"
+                                            @click="seller.expanded = !seller.expanded" x-data="{ expanded: false }">
+                                            <div class="font-medium text-gray-700 dark:text-gray-300"
+                                                x-text="seller.name"></div>
+                                            <div class="flex items-center gap-4">
+                                                <span class="text-sm text-gray-500"
+                                                    x-text="seller.items.length + ' invoices'"></span>
+                                                <span class="font-bold text-gray-900 dark:text-white"
+                                                    x-text="'¥' + seller.total.toFixed(2)"></span>
+                                            </div>
+                                        </div>
+
+                                        <!-- Expanded Items in Group -->
+                                        <div x-show="seller.expanded"
+                                            class="border-t border-gray-100 dark:border-gray-800 p-2 bg-gray-50 dark:bg-gray-900"
+                                            x-transition>
+                                            <table class="min-w-full text-sm">
+                                                <template x-for="item in seller.items" :key="item.filename">
+                                                    <tr class="text-gray-600 dark:text-gray-400">
+                                                        <td class="px-2 py-1" x-text="item.date"></td>
+                                                        <td class="px-2 py-1" x-text="item.invoice_no"></td>
+                                                        <td class="px-2 py-1 text-right"
+                                                            x-text="'¥' + item.total_amount"></td>
+                                                    </tr>
+                                                </template>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </template>
+            <div x-show="groupedData.length === 0" class="text-center py-12 text-gray-500 dark:text-gray-400">
+                <span x-text="t('noData')"></span>
+            </div>
+        </div>
+    </main>
+
+    <!-- App Logic -->
+    <script>
+        function app() {
+            return {
+                invoices: [],
+                expandedItems: [], // Init expanded items array
+                search: '',
+                lang: localStorage.getItem('lang') || 'zh',
+                isDark: localStorage.getItem('theme') === 'dark',
+                loading: false,
+                dedupLoading: false,
+                orgLoading: false,
+
+                // Sorting
+                sortCol: 'quarter', // default sort
+                sortAsc: true,
+
+                // Grouping
+                isGrouped: false,
+
+                translations: {
+                    en: {
+                        upload: "Upload PDF",
+                        refresh: "Refresh & Scan",
+                        deduplicate: "Deduplicate",
+                        toggleGroup: "Group Results",
+                        searchPlaceholder: "Search invoices...",
+                        totalInvoices: "Total Invoices",
+                        totalAmount: "Total Amount",
+                        uniqueSellers: "Unique Sellers",
+                        date: "Date",
+                        invoiceNo: "Invoice No",
+                        purchaser: "Purchaser",
+                        seller: "Seller",
+                        amount: "Amount",
+                        actions: "Actions",
+                        noData: "No invoices found.",
+                        deduplicateSuccess: "Deduplication complete! Moved duplicates to 'dump/'.",
+                        deduplicateEmpty: "No duplicates found.",
+                        quarter: "Quarter",
+                        organize: "Organize Invoices",
+                        organizeSuccess: "Organization complete.",
+                        organizeError: "Failed to organize.",
+                        exportZip: "Export ZIP",
+                        exportError: "Export failed. Please organize first."
+                    },
+                    zh: {
+                        upload: "上传发票",
+                        refresh: "刷新与扫描",
+                        deduplicate: "一键去重",
+                        toggleGroup: "分组展示",
+                        searchPlaceholder: "搜索发票...",
+                        totalInvoices: "发票总数",
+                        totalAmount: "总金额",
+                        uniqueSellers: "销售方数量",
+                        date: "开票日期",
+                        invoiceNo: "发票号码",
+                        purchaser: "购买方",
+                        seller: "销售方",
+                        amount: "金额",
+                        actions: "操作",
+                        noData: "未找到发票。",
+                        deduplicateSuccess: "去重完成！已将重复文件移至 'dump/' 文件夹。",
+                        deduplicateEmpty: "未发现重复发票。",
+                        quarter: "季度",
+                        organize: "整理发票",
+                        organizeSuccess: "整理完成。",
+                        organizeError: "整理失败。",
+                        exportZip: "导出ZIP",
+                        exportError: "导出失败，请先整理发票。"
+                    }
+                },
+
+                t(key) {
+                    return this.translations[this.lang][key] || key;
+                },
+
+                initApp() {
+                    if (this.isDark) document.documentElement.classList.add('dark');
+                    this.fetchData();
+                },
+
+                toggleTheme() {
+                    this.isDark = !this.isDark;
+                    if (this.isDark) {
+                        document.documentElement.classList.add('dark');
+                        localStorage.setItem('theme', 'dark');
+                    } else {
+                        document.documentElement.classList.remove('dark');
+                        localStorage.setItem('theme', 'light');
+                    }
+                },
+
+                toggleLang() {
+                    this.lang = this.lang === 'en' ? 'zh' : 'en';
+                    localStorage.setItem('lang', this.lang);
+                },
+
+                sortBy(col) {
+                    if (this.sortCol === col) {
+                        this.sortAsc = !this.sortAsc;
+                    } else {
+                        this.sortCol = col;
+                        this.sortAsc = true;
+                    }
+                },
+
+                toggleExpand(invoiceNo) {
+                    // Use a Set-like logic or simply an array of IDs
+                    if (this.expandedItems.includes(invoiceNo)) {
+                        this.expandedItems = this.expandedItems.filter(id => id !== invoiceNo);
+                    } else {
+                        this.expandedItems.push(invoiceNo);
+                    }
+                },
+
+                isExpanded(invoiceNo) {
+                    return this.expandedItems.includes(invoiceNo);
+                },
+
+                async fetchData() {
+                    this.loading = true;
+                    try {
+                        const res = await fetch('/api/invoices');
+                        const data = await res.json();
+                        this.invoices = data;
+                        // Reset expanded state on refresh
+                        this.expandedItems = [];
+                    } catch (e) {
+                        console.error(e);
+                        alert('Failed to fetch data');
+                    } finally {
+                        this.loading = false;
+                    }
+                },
+
+                async handleUpload(e) {
+                    const files = e.target.files;
+                    if (!files.length) return;
+
+                    const formData = new FormData();
+                    for (let i = 0; i < files.length; i++) {
+                        formData.append('files', files[i]);
+                    }
+
+                    try {
+                        await fetch('/api/upload', {
+                            method: 'POST',
+                            body: formData
+                        });
+                        await this.fetchData();
+                    } catch (e) {
+                        alert('Upload failed');
+                    }
+                    e.target.value = '';
+                },
+
+                async handleDeduplicate() {
+                    if (!confirm(this.lang === 'zh' ? '确定要移动所有重复发票到 dump 目录吗？' : 'Move all duplicates to dump folder?')) return;
+
+                    this.dedupLoading = true;
+                    try {
+                        const res = await fetch('/api/deduplicate', { method: 'POST' });
+                        const data = await res.json();
+                        if (data.moved_count > 0) {
+                            alert(this.t('deduplicateSuccess'));
+                        } else {
+                            alert(this.t('deduplicateEmpty'));
+                        }
+                        await this.fetchData();
+                    } catch (e) {
+                        alert('Deduplication failed');
+                    } finally {
+                        this.dedupLoading = false;
+                    }
+                },
+
+                async handleOrganize() {
+                    this.orgLoading = true;
+                    try {
+                        const res = await fetch('/api/organize', { method: 'POST' });
+                        const data = await res.json();
+                        alert(`${this.t('organizeSuccess')} (Count: ${data.message})`);
+                    } catch (e) {
+                        alert(this.t('organizeError'));
+                    } finally {
+                        this.orgLoading = false;
+                    }
+                },
+
+                async exportZip(purchaser, quarter) {
+                    try {
+                        const url = `/api/export/${encodeURIComponent(purchaser)}/${encodeURIComponent(quarter)}`;
+                        // Trigger download
+                        window.location.href = url;
+                    } catch (e) {
+                        alert(this.t('exportError'));
+                    }
+                },
+
+                async deleteItem(item) {
+                    if (!confirm(this.lang === 'zh' ? '确定要删除此文件吗？' : 'Delete this file?')) return;
+
+                    const files = item.filename.split(', ');
+
+                    for (let f of files) {
+                        try {
+                            await fetch(`/api/invoices/${encodeURIComponent(f)}`, { method: 'DELETE' });
+                        } catch (e) { console.error(e); }
+                    }
+
+                    await this.fetchData();
+                },
+
+                get filteredData() {
+                    let data = this.invoices;
+
+                    // Filter
+                    if (this.search) {
+                        const cleanSearch = this.search.toLowerCase();
+                        data = data.filter(i => {
+                            // Helper to safely check fields
+                            const check = (val) => val && String(val).toLowerCase().includes(cleanSearch);
+
+                            return check(i.invoice_no) ||
+                                check(i.purchaser) ||
+                                check(i.seller) ||
+                                check(i.filename) ||
+                                check(i.total_amount);
+                        });
+                    }
+
+                    // Sort
+                    return data.sort((a, b) => {
+                        let va = a[this.sortCol];
+                        let vb = b[this.sortCol];
+
+                        // Handle nulls
+                        if (va === null) va = "";
+                        if (vb === null) vb = "";
+
+                        // Numeric check for amount
+                        if (this.sortCol === 'total_amount') {
+                            va = parseFloat(va) || 0;
+                            vb = parseFloat(vb) || 0;
+                        } else {
+                            if (typeof va === 'string') va = va.toLowerCase();
+                            if (typeof vb === 'string') vb = vb.toLowerCase();
+                        }
+
+                        if (va < vb) return this.sortAsc ? -1 : 1;
+                        if (va > vb) return this.sortAsc ? 1 : -1;
+                        return 0;
+                    });
+                },
+
+                get groupedData() {
+                    // Group by Purchaser -> Quarter -> Seller
+                    const groups = {};
+
+                    this.filteredData.forEach(item => {
+                        const p = item.purchaser || 'Unknown Purchaser';
+                        const q = item.quarter || 'Unknown Quarter';
+                        const s = item.seller || 'Unknown Seller';
+
+                        if (!groups[p]) groups[p] = { total: 0, quarters: {} };
+                        if (!groups[p].quarters[q]) groups[p].quarters[q] = { total: 0, sellers: {} };
+                        if (!groups[p].quarters[q].sellers[s]) groups[p].quarters[q].sellers[s] = { total: 0, items: [] };
+
+                        groups[p].total += (item.total_amount || 0);
+                        groups[p].quarters[q].total += (item.total_amount || 0);
+                        groups[p].quarters[q].sellers[s].total += (item.total_amount || 0);
+                        groups[p].quarters[q].sellers[s].items.push(item);
+                    });
+
+                    // Convert to sorted array hierarchy
+                    return Object.keys(groups).sort().map(pKey => {
+                        const quartersObj = groups[pKey].quarters;
+
+                        const quartersArr = Object.keys(quartersObj).sort().reverse().map(qKey => {
+                            const sellersObj = quartersObj[qKey].sellers;
+                            const sellersArr = Object.keys(sellersObj).map(sKey => ({
+                                name: sKey,
+                                ...sellersObj[sKey]
+                            })).sort((a, b) => b.total - a.total);
+
+                            return {
+                                name: qKey,
+                                total: quartersObj[qKey].total,
+                                sellers: sellersArr
+                            };
+                        });
+
+                        return {
+                            name: pKey,
+                            total: groups[pKey].total,
+                            quarters: quartersArr
+                        };
+                    });
+                },
+
+                get totalAmount() {
+                    return this.filteredData.reduce((acc, curr) => acc + (curr.total_amount || 0), 0);
+                },
+
+                get uniqueSellers() {
+                    const sellers = new Set(this.filteredData.map(i => i.seller).filter(Boolean));
+                    return sellers.size;
+                }
+            }
+        }
+    </script>
+</body>
+
+</html>
