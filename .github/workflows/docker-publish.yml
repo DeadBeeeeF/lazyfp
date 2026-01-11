@@ -2,8 +2,8 @@ name: Docker Build and Publish
 
 on:
   push:
-    branches: [ "main" ]
-    # Also trigger on tags if desired? For now just main as requested.
+    tags: [ "v*.*.*" ]
+    # branches: [ "main" ] # Disabled per request (trigger only on tags)
 
 env:
   REGISTRY: ghcr.io
