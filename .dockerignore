@@ -1,0 +1,12 @@
+__pycache__
+venv
+.git
+.github
+*.log
+*.pyc
+.DS_Store
+.env
+fp/
+zip/
+debug_output.txt
+invoice_summary.xlsx
